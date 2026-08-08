@@ -1,0 +1,13 @@
+{
+  "name": "github-pages-deploy-tools",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Dependencies used by the shared GitHub Pages social-preview tooling.",
+  "engines": {
+    "node": ">=24"
+  },
+  "devDependencies": {
+    "playwright": "1.58.0"
+  }
+}

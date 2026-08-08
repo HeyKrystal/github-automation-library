@@ -1,0 +1,166 @@
+name: Reusable GitHub Pages deploy
+
+on:
+  # This workflow is not triggered directly. Individual projects call it from
+  # their own tiny pages.yml workflow.
+  workflow_call:
+
+# A newer deployment for the same caller repository supersedes an older one.
+# github.repository refers to the CALLING repository when this reusable
+# workflow runs, so different sites do not cancel each other's deployments.
+concurrency:
+  group: pages-${{ github.repository }}
+  cancel-in-progress: true
+
+# A called workflow cannot grant itself more GITHUB_TOKEN permissions than the
+# caller allows. These permissions are repeated here as documentation and as a
+# safety boundary; the caller template grants the same three permissions.
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+jobs:
+  deploy:
+    name: Build and deploy Pages
+    runs-on: ubuntu-latest
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      # ---------------------------------------------------------------------
+      # Check out the site that called this workflow.
+      # ---------------------------------------------------------------------
+      - name: Checkout site repository
+        uses: actions/checkout@v7
+        with:
+          # Full history lets the preview helper compare every commit included
+          # in a push rather than looking only at the newest commit.
+          fetch-depth: 0
+          path: site
+
+      # ---------------------------------------------------------------------
+      # Check out this shared automation repository beside the site.
+      #
+      # Why do this? Reusable workflow YAML is loaded by GitHub, but the JS and
+      # npm files stored next to it are not automatically placed on the runner.
+      # This checkout makes the shared helper files available without copying
+      # them into every webapp repository.
+      #
+      # IMPORTANT: The repository/ref below intentionally match the reference
+      # used by the project caller workflow: @v1. If a future breaking v2 is
+      # created, the v2 workflow should change this to ref: v2.
+      # ---------------------------------------------------------------------
+      - name: Checkout shared deployment tools
+        uses: actions/checkout@v7
+        with:
+          repository: HeyKrystal/github-automation
+          ref: v1
+          path: automation
+          persist-credentials: false
+
+      # Node is needed by the small shared helper scripts. Playwright itself is
+      # installed only when the social preview actually needs regeneration.
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      # ---------------------------------------------------------------------
+      # Social preview
+      #
+      # The shared helper reads site/.github/pages-config.json and decides
+      # whether generation is needed. It automatically watches:
+      #   - social-preview.html
+      #   - .github/pages-config.json
+      # plus any project-specific files/folders listed under socialPreview.watch.
+      #
+      # Manual workflow runs always force regeneration unless skipGeneration
+      # is true in the project config.
+      # ---------------------------------------------------------------------
+      - name: Check social preview inputs
+        id: preview
+        shell: bash
+        env:
+          SITE_ROOT: ${{ github.workspace }}/site
+          CALLER_EVENT_NAME: ${{ github.event_name }}
+          CALLER_BEFORE_SHA: ${{ github.event.before }}
+          CALLER_SHA: ${{ github.sha }}
+        run: node "$GITHUB_WORKSPACE/automation/pages-deploy/generate-social-preview.js" check
+
+      # The npm project lives only in the SHARED automation repository. Caller
+      # webapps do not need Playwright in their own package.json/package-lock.json.
+      - name: Install social preview dependencies
+        if: steps.preview.outputs.generate == 'true'
+        shell: bash
+        working-directory: automation/pages-deploy
+        run: npm ci
+
+      - name: Install Chromium
+        if: steps.preview.outputs.generate == 'true'
+        shell: bash
+        working-directory: automation/pages-deploy
+        run: npx playwright install chromium --with-deps
+
+      - name: Generate social preview
+        if: steps.preview.outputs.generate == 'true'
+        shell: bash
+        env:
+          SITE_ROOT: ${{ github.workspace }}/site
+        run: node "$GITHUB_WORKSPACE/automation/pages-deploy/generate-social-preview.js" generate
+
+      # Keep the generated image in the caller repository so it is visible,
+      # versioned, and available without re-rendering on every deployment.
+      #
+      # Commits made with GITHUB_TOKEN do not recursively trigger ordinary push
+      # workflows, so this does not create an Actions loop. The current run then
+      # deploys the newly generated image from its own working tree.
+      - name: Commit changed social preview
+        if: steps.preview.outputs.generate == 'true'
+        shell: bash
+        working-directory: site
+        env:
+          PREVIEW_OUTPUT: ${{ steps.preview.outputs.output }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "$(git status --porcelain -- "$PREVIEW_OUTPUT")" ]; then
+            echo "Social preview did not change."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add -- "$PREVIEW_OUTPUT"
+          git commit -m "Update social preview"
+          git push
+
+      # ---------------------------------------------------------------------
+      # Build the static Pages artifact.
+      #
+      # prepare-dist.js reads the project's deploy list from pages-config.json,
+      # recreates site/dist, and copies only those files/directories into it.
+      # No project-specific file list is embedded in this reusable workflow.
+      # ---------------------------------------------------------------------
+      - name: Prepare deployment files
+        id: prepare
+        shell: bash
+        env:
+          SITE_ROOT: ${{ github.workspace }}/site
+        run: node "$GITHUB_WORKSPACE/automation/pages-deploy/prepare-dist.js"
+
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v6
+
+      - name: Upload GitHub Pages artifact
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: ${{ steps.prepare.outputs.path }}
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v5

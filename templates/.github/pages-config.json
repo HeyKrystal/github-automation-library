@@ -1,0 +1,18 @@
+{
+  "_comment": "Normally this is the only Pages deployment file you edit per project.",
+
+  "deploy": [
+    "index.html",
+    "styles",
+    "src",
+    "images"
+  ],
+
+  "socialPreview": {
+    "_comment": "false = generate images/social-preview.png from social-preview.html; true = use a manually maintained PNG. Add any extra files/folders used by the generated preview to watch.",
+    "skipGeneration": false,
+    "watch": [
+      "images"
+    ]
+  }
+}

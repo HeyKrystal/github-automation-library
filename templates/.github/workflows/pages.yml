@@ -1,0 +1,22 @@
+name: Deploy Pages
+
+on:
+  push:
+    branches:
+      - main
+
+  # Manual runs are also useful as a force-rebuild button. When social preview
+  # generation is enabled, a manual run forces a fresh preview render.
+  workflow_dispatch:
+
+# The shared workflow needs these permissions to commit a regenerated preview
+# and to publish the Pages deployment. Keep this caller file identical between
+# projects; project-specific behavior belongs in .github/pages-config.json.
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+jobs:
+  deploy:
+    uses: HeyKrystal/github-automation/.github/workflows/pages-deploy.yml@v1
