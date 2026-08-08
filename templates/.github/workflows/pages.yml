@@ -19,4 +19,4 @@ permissions:
 
 jobs:
   deploy:
-    uses: HeyKrystal/github-automation/.github/workflows/pages-deploy.yml@v1
+    uses: HeyKrystal/github-automation-library/.github/workflows/pages-deploy.yml@v1

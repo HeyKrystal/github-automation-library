@@ -56,7 +56,7 @@ jobs:
       - name: Checkout shared deployment tools
         uses: actions/checkout@v7
         with:
-          repository: HeyKrystal/github-automation
+          repository: HeyKrystal/github-automation-library
           ref: v1
           path: automation
           persist-credentials: false
