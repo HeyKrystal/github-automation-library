@@ -42,7 +42,7 @@ Social preview source : social-preview.html
 Social preview output : images/social-preview.png
 Social preview size   : 1200 × 630
 Pages build directory : dist/
-Project config         : .github/pages-config.json
+Project config        : .github/pages-config.json
 ```
 
 Keeping these fixed removes settings that would otherwise have to be remembered
