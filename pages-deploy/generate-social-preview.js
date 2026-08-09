@@ -151,17 +151,8 @@ async function checkPreview() {
 
     await setGitHubOutput("output", PREVIEW_OUTPUT);
 
-    // A hand-designed preview still follows the same output-file convention;
-    // the automation simply validates that the file exists and leaves it alone.
+    // Project either has a hand designed preview, or does not utilize one.
     if (config.skipGeneration) {
-        try {
-            await access(outputPath);
-        } catch {
-            throw new Error(
-                `socialPreview.skipGeneration is true, but ${PREVIEW_OUTPUT} does not exist.`,
-            );
-        }
-
         console.log("Social preview generation is skipped by project configuration.");
         await setGitHubOutput("generate", "false");
         return;
